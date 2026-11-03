@@ -44,22 +44,30 @@
 
   // Intent groups. Any word in a group pulls in the others at lower weight. need: catalogue needs it points to.
   var GROUPS = [
-    { need: ["video"], w: "clip clips clipping short shorts reel reels short-form cut cuts cutting highlight highlights repurpose repurposing" },
+    // Making short videos and cutting clips out of long ones are different jobs, so they're separate groups.
+    { need: ["video"], w: "short shorts reel reels short-form vertical" },
+    { need: ["video"], w: "clip clips clipping cut cuts cutting highlight highlights repurpose repurposing" },
     { need: ["video", "audio"], w: "caption captions captioning subtitle subtitles srt transcript transcripts transcription transcribe" },
     { need: ["seo"], w: "seo ranking rankings rank serp keyword keywords organic search-console technical-seo" },
-    { need: ["ads"], w: "ads ad paid meta meta-ads facebook google-ads ppc campaign campaigns creative creatives" },
-    { need: ["email", "outreach"], w: "email emails outreach cold cold-email newsletter sequence sequences deliverability inbox prospecting leads" },
-    { need: ["photo", "video"], w: "thumbnail thumbnails cover image images photo photos" },
+    // "campaign" is left out on purpose: most campaigns aren't paid ads.
+    { need: ["ads"], w: "ads ad paid meta-ads google-ads ppc creative creatives sponsored boost boosted" },
+    // Newsletters and member emails are kept apart from cold outreach.
+    { need: ["email"], w: "email emails newsletter newsletters edm mailchimp member-email inbox deliverability" },
+    { need: ["outreach", "email"], w: "outreach cold cold-email prospecting prospect prospects leads lead-gen sequence sequences pitch pitching" },
+    { need: ["photo", "video"], w: "thumbnail thumbnails cover" },
+    { need: ["photo"], w: "photo photos photography photograph photographs image images retouch retouching raw lightroom darktable colour color grading" },
+    { need: ["local-seo", "social"], w: "venue venues club clubs clubhouse golf hospitality restaurant restaurants cafe bar pub" },
+    { need: ["content", "marketing"], w: "testimonial testimonials case-study proof" },
     { need: ["content", "video"], w: "script scripts scriptwriting copywriting copy" },
     { need: ["content", "social", "video"], w: "hook hooks opener viral" },
     { need: ["audio"], w: "podcast podcasts episode episodes audio" },
-    { need: ["video"], w: "video videos edit editing editor footage youtube" },
+    { need: ["video"], w: "video videos edit editing editor footage youtube film filming vertical davinci resolve capcut premiere" },
     { need: ["audio", "video"], w: "voiceover voice tts narration dubbing dub voice-cloning" },
     { need: ["social"], w: "social posting post posts schedule scheduling scheduler publish publishing instagram linkedin tiktok twitter" },
     { need: ["social", "content"], w: "plan calendar content-calendar planning strategy" },
     { need: ["local-seo"], w: "local gbp maps reviews local-seo citations directories" },
     { need: ["ai-search"], w: "ai-search geo aeo llm chatgpt perplexity gemini claude chatbot chatbots llms-txt citation cited answer-engine visibility" },
-    { need: ["analytics"], w: "analytics ga4 tracking report reporting dashboard metrics" },
+    { need: ["analytics"], w: "analytics ga4 tracking track report reporting dashboard metrics utm utms attribution short-link performance results" },
     { need: ["backlinks"], w: "backlink backlinks link-building links pr" },
     { need: ["content"], w: "landing landing-pages cro conversion signup" },
     { need: ["content", "seo"], w: "blog blogs article articles post-writing writing" },
@@ -69,6 +77,9 @@
     { need: ["video"], w: "motion motion-graphics animation animated explainer remotion" },
     { need: ["audio"], w: "music song sound sfx" }
   ];
+  // Broad words that appear in almost every marketing tool: they still count, but at low weight.
+  var WEAK = {};
+  "campaign campaigns promote promoting promotion promotions marketing market business".split(" ").forEach(function (w) { WEAK[stem(w)] = 1; });
   var NEED_WORDS = { video: 1, seo: 1, social: 1, content: 1, ads: 1, email: 1, outreach: 1, photo: 1, audio: 1, analytics: 1, marketing: 1, research: 1, automation: 1, scraping: 1, backlinks: 1 };
 
   var groupOf = {}; // stemmed word -> [group index]
@@ -84,12 +95,12 @@
     var raw = String(prompt == null ? "" : prompt).toLowerCase();
     var terms = {}; // stem -> { w, from: {word:1}, concept }
     var concepts = []; // one per distinct prompt word
-    function add(t, w, word, ci) {
+    function add(t, w, word, ci, direct) {
       var x = terms[t];
       if (!x) x = terms[t] = { t: t, w: 0, from: {}, concepts: {}, show: SHOW[t] || word };
       if (w > x.w) x.w = w;
-      if (w === 1) x.show = word;
-      x.from[word] = w === 1 ? 1 : (x.from[word] || 2);
+      if (direct) x.show = word;
+      x.from[word] = direct ? 1 : (x.from[word] || 2);
       x.concepts[ci] = 1;
     }
     var seen = {};
@@ -105,9 +116,9 @@
       seen[tk.s] = 1;
       var ci = concepts.length;
       concepts.push({ word: tk.word, s: tk.s, groups: groupOf[tk.s] || [] });
-      add(tk.s, 1, tk.word, ci);
+      add(tk.s, WEAK[tk.s] ? 0.35 : 1, tk.word, ci, true);
       (groupOf[tk.s] || []).forEach(function (gi) {
-        GROUPS[gi].stems.forEach(function (s2) { if (s2 !== tk.s) add(s2, 0.45, tk.word, ci); });
+        GROUPS[gi].stems.forEach(function (s2) { if (s2 !== tk.s) add(s2, 0.45, tk.word, ci, false); });
       });
     });
     return { terms: Object.keys(terms).map(function (k) { return terms[k]; }), concepts: concepts };
@@ -282,6 +293,14 @@
     if (text != null) n.textContent = text;
     return n;
   }
+  // Licences worth a second look before you reuse or build on the tool.
+  function licenceNote(lic) {
+    if (/none stated/i.test(lic)) return "no licence stated, so you have no right to reuse the code";
+    if (/AGPL/i.test(lic)) return "AGPL: if you run it as a service for others, you must share your changes";
+    if (/GPL/i.test(lic)) return "GPL: anything you distribute that includes it must also be GPL";
+    if (/remotion|paid|commercial/i.test(lic)) return "may need a paid licence for company use";
+    return "";
+  }
   function safeUrl(u) { return typeof u === "string" && /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : ""; }
 
   function getEngine() {
@@ -311,7 +330,9 @@
     var meta = el("div", "meta");
     meta.appendChild(el("span", "pill type", e.type));
     if (e.need) meta.appendChild(el("span", "pill", e.need)).title = "Need";
-    meta.appendChild(el("span", "pill", e.licence || "none stated")).title = "Licence";
+    var lic = e.licence || "none stated", note = licenceNote(lic);
+    var lp = meta.appendChild(el("span", note ? "pill warn" : "pill", lic));
+    lp.title = note ? "Licence: " + note : "Licence";
     a.appendChild(meta);
     if (e.summary) a.appendChild(el("p", "summary", e.summary));
     if (it.why) {

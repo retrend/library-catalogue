@@ -17,7 +17,7 @@ A box above the catalogue: type what you're making ("I'm launching a podcast and
 All in `recommend.js`, in the browser, with no API key and no network calls beyond `data.json`. How it ranks:
 
 1. Tokenise the prompt, drop stopwords, light stemming (clips/clip, posting/post).
-2. Expand words through intent groups (clips ↔ shorts/reels/cut, captions ↔ subtitles/transcripts, seo ↔ ranking/serp, ads ↔ paid/meta, email ↔ outreach/cold, thumbnail, script, hook, …) at lower weight.
+2. Expand words through intent groups (shorts ↔ reels/vertical, clips ↔ cut/highlights, captions ↔ subtitles/transcripts, seo ↔ ranking/serp, ads ↔ paid/ppc, newsletter ↔ email, outreach ↔ cold/prospecting, photos ↔ retouch/raw/lightroom, venue ↔ club/golf/restaurant, tracking ↔ utm/attribution, …) at lower weight. Broad words such as "campaign", "promote" and "marketing" count at low weight so they don't pull in one need.
 3. BM25F-style score over name, need tag (weighted highest), other tags, summary and use_when.
 4. Multiply by a rank boost (up to +35% for the top of the catalogue) and by how much of the prompt the entry covers.
 5. Infer needs from the needs of the top 30 results plus needs the prompt names outright; keep up to 3.
