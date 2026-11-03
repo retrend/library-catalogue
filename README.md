@@ -24,6 +24,18 @@ All in `recommend.js`, in the browser, with no API key and no network calls beyo
 
 Semantic matching (MiniLM embeddings) was tried and left out: on test prompts it barely changed the top results, and it would mean a 23 MB model download from a CDN. Keyword mode is the only mode.
 
+## Catalogue data (from 3 November 2026)
+
+`build_site.py` reads Library Scout's `catalog.jsonl` and writes `data.json`.
+
+- Types: skill, plugin, template, agent, bot, prompt, and **app** (closed-source software or a hosted service, often with a free tier). Any other clean lowercase type value is passed through and listed in the build log.
+- Optional fields `stars`, `repo_pushed_at`, `path_updated_at`, `skill_file`, `archived`, `low_trust`, `licence_source`, `first_seen`, `last_checked`, `stars_prev` are accepted. Only `low_trust` and `archived` are shipped, and only when true. The cards show them as **low trust** and **archived** pills. `notes` is never shipped.
+- `status: skip` entries are left out and counted (`skippedStatus`).
+- The footer shows the entry count and the newest `found_on` / `last_checked` date.
+- SPDX-style licences get a warning pill in the recommender when they limit reuse (AGPL, GPL, non-commercial, source-available such as BUSL, Elastic and PolyForm, and paid or hosted services).
+
+Tests: `test/run-all.sh` (needs jsdom at `/tmp/jsdom-test/node_modules`). Runs the site, new-data, recommender and account tests. Fixtures are in `test/fixtures/`.
+
 ## Optional accounts (Supabase)
 
 The site works fully signed out. Signing in adds:

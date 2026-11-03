@@ -2,10 +2,14 @@
 """Build data.json for the public Library Catalogue site from Library Scout's catalog.jsonl.
 
 Read-only over the catalogue. Idempotent: data.json is only rewritten when its content
-changes, and it carries no build timestamp (the date shown is the newest found_on).
+changes, and it carries no build timestamp (the date shown is the newest found_on / last_checked).
 
   python3 build_site.py
   LIBRARY_CATALOG=/tmp/library-site-test/catalog.jsonl LIBRARY_SITE_OUT=/tmp/x/data.json python3 build_site.py
+
+Optional catalogue fields (stars, repo_pushed_at, path_updated_at, skill_file, archived, low_trust,
+licence_source, first_seen, last_checked, stars_prev) are tolerated. Only low_trust and archived are
+shipped (and only when true); "updated" is the newest of found_on and last_checked.
 
 Privacy rules:
   - the 'notes' field is never written to data.json
@@ -38,7 +42,11 @@ SECRET_PATTERNS = [
     ("email", r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.-]*[A-Za-z]{2,}"),
     ("phone", r"(?<![\d/=-])\+\d{1,3}[\s.-]?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}(?!\d)"),
 ]
-TYPES = ["skill", "agent", "bot", "plugin", "template", "prompt"]
+# Known types. "app" = closed-source software or a hosted service (often with a free tier), added 2026-11-03.
+# Any other clean lowercase type value is passed through as is (and listed in the build log),
+# so a new type from Library Scout shows up in the Type filter without a code change.
+TYPES = ["skill", "agent", "bot", "plugin", "template", "prompt", "app"]
+TYPE_RE = re.compile(r"^[a-z][a-z0-9-]{0,23}$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -88,6 +96,15 @@ def rank_of(v):
         return None
 
 
+def flag(v) -> bool:
+    return v is True or (isinstance(v, str) and v.strip().lower() == "true")
+
+
+def date_of(v) -> str:
+    d = text(v)[:10]
+    return d if DATE_RE.match(d) else ""
+
+
 def normalise(raw: dict) -> dict | None:
     name = text(raw.get("name")) or text(raw.get("id"))
     if not name:
@@ -95,11 +112,11 @@ def normalise(raw: dict) -> dict | None:
     typ = text(raw.get("type")).lower()
     tags = tags_of(raw.get("tags"))
     found = text(raw.get("found_on"))
-    return {  # explicit allow-list: notes is never copied
+    e = {  # explicit allow-list: notes and the ranking signals (stars, dates, skill_file, licence_source...) are never copied
         "id": slug(text(raw.get("id")) or name),
         "rank": rank_of(raw.get("rank")),
         "name": name,
-        "type": typ if typ in TYPES else "other",
+        "type": typ if typ in TYPES or TYPE_RE.match(typ) else "other",
         "need": tags[0] if tags else "",
         "tags": tags,
         "summary": text(raw.get("summary")),
@@ -110,6 +127,14 @@ def normalise(raw: dict) -> dict | None:
         "url": safe_url(raw.get("source_url")),
         "found_on": found if DATE_RE.match(found) else "",
     }
+    # Optional flags, shipped only when true to keep data.json small.
+    if flag(raw.get("low_trust")):
+        e["low_trust"] = True
+    if flag(raw.get("archived")):
+        e["archived"] = True
+    # Build-only: the newest last_checked feeds the "Updated" date (not shipped per entry).
+    e["_checked"] = date_of(raw.get("last_checked"))
+    return e
 
 
 def main() -> int:
@@ -153,7 +178,8 @@ def main() -> int:
         entries.append(e)
 
     entries.sort(key=lambda e: (e["rank"] is None, e["rank"] or 0, e["name"].lower(), e["id"]))
-    dates = [e["found_on"] for e in entries if e["found_on"]]
+    dates = [d for e in entries for d in (e["found_on"], e.pop("_checked")) if d]
+    new_types = sorted({e["type"] for e in entries} - set(TYPES) - {"other"})
     data = {
         "name": "Library Catalogue",
         "updated": max(dates) if dates else "",
@@ -177,6 +203,13 @@ def main() -> int:
         print(f"Skipped {len(bad)} malformed line(s): {', '.join(map(str, bad))}")
     if skipped_status:
         print(f"Left out {len(skipped_status)} entry(ies) with status skip")
+    by_type: dict[str, int] = {}
+    for e in entries:
+        by_type[e["type"]] = by_type.get(e["type"], 0) + 1
+    print("By type: " + ", ".join(f"{k} {v}" for k, v in sorted(by_type.items(), key=lambda kv: -kv[1])))
+    print(f"Flagged: low_trust {sum(1 for e in entries if e.get('low_trust'))}, archived {sum(1 for e in entries if e.get('archived'))}")
+    if new_types:
+        print(f"New type value(s) passed through: {', '.join(new_types)}")
     if no_link:
         print(f"No http(s) link for {len(no_link)} entry(ies): {', '.join(no_link)}")
     for i, n, hits in excluded:

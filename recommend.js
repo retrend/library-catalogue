@@ -80,6 +80,9 @@
   // Broad words that appear in almost every marketing tool: they still count, but at low weight.
   var WEAK = {};
   "campaign campaigns promote promoting promotion promotions marketing market business".split(" ").forEach(function (w) { WEAK[stem(w)] = 1; });
+  // Promotion prompts: venue/back-office software (need "business") is rarely what the user is asking for.
+  var PROMO = {};
+  "promote promoting promotion promotions marketing market campaign campaigns advertise advertising".split(" ").forEach(function (w) { PROMO[stem(w)] = 1; });
   var NEED_WORDS = { video: 1, seo: 1, social: 1, content: 1, ads: 1, email: 1, outreach: 1, photo: 1, audio: 1, analytics: 1, marketing: 1, research: 1, automation: 1, scraping: 1, backlinks: 1 };
 
   var groupOf = {}; // stemmed word -> [group index]
@@ -194,12 +197,13 @@
       var q = parsePrompt(prompt);
       if (!q.terms.length) return { empty: true, prompt: String(prompt || ""), concepts: [], best: [], needs: [], total: 0 };
       var nc = q.concepts.length || 1;
+      var promo = q.concepts.some(function (c) { return PROMO[c.s]; });
       var scored = [];
       for (var i = 0; i < docs.length; i++) {
         var d = docs[i], r = scoreDoc(d, q);
         if (!r.s) continue;
         // rank boost: up to +35% for the top of the catalogue; coverage: more of the prompt matched scores higher
-        scored.push({ e: d.e, need: d.need, hit: r.hit, score: r.s * rankBoost(d.e) * (0.6 + 0.4 * r.cov / nc) });
+        scored.push({ e: d.e, need: d.need, hit: r.hit, score: r.s * rankBoost(d.e) * (0.6 + 0.4 * r.cov / nc) * (promo && d.need === "business" ? 0.5 : 1) });
       }
       scored.sort(function (a, b) {
         return b.score - a.score || ((a.e.rank == null ? 1e9 : a.e.rank) - (b.e.rank == null ? 1e9 : b.e.rank));
@@ -239,7 +243,18 @@
       }).slice(0, 3);
 
       function item(x) { return { entry: x.e, score: x.score, matched: Object.keys(x.hit), why: why(x) }; }
-      var best = scored.slice(0, opts.best || 8).map(item);
+      var bestX = scored.slice(0, opts.best || 8);
+      // Measurement is easy to crowd out of a long prompt: if the prompt asks to track or measure
+      // (analytics hinted) and no analytics tool made the list, it takes the slot of the lowest-scoring
+      // item from a need that already holds 3 or more.
+      if (hinted.analytics >= 1.5 && bestIn.analytics != null && !bestX.some(function (x) { return x.need === "analytics"; })) {
+        var cnt = {};
+        bestX.forEach(function (x) { cnt[x.need] = (cnt[x.need] || 0) + 1; });
+        for (var k = bestX.length - 1; k >= 0; k--) {
+          if (cnt[bestX[k].need] >= 3) { bestX[k] = scored.filter(function (x) { return x.need === "analytics"; })[0]; break; }
+        }
+      }
+      var best = bestX.map(item);
       var needs = needList.map(function (n) {
         return { need: n, items: scored.filter(function (x) { return x.need === n; }).slice(0, opts.perNeed || 3).map(item) };
       }).filter(function (g) { return g.items.length; });
@@ -298,7 +313,10 @@
     if (/none stated/i.test(lic)) return "no licence stated, so you have no right to reuse the code";
     if (/AGPL/i.test(lic)) return "AGPL: if you run it as a service for others, you must share your changes";
     if (/GPL/i.test(lic)) return "GPL: anything you distribute that includes it must also be GPL";
-    if (/remotion|paid|commercial/i.test(lic)) return "may need a paid licence for company use";
+    if (/noncommercial|non-commercial|\bNC\b|-NC-/i.test(lic)) return "non-commercial use only";
+    if (/commercial service/i.test(lic)) return "hosted service: its terms of use and plan limits apply";
+    if (/remotion|paid|commercial|proprietary/i.test(lic)) return "may need a paid licence for company use";
+    if (/BUSL|Business Source|Elastic|PolyForm|LicenseRef-/i.test(lic)) return "source-available with limits; read the terms before company use";
     return "";
   }
   function safeUrl(u) { return typeof u === "string" && /^https?:\/\/[^\s"'<>]+$/i.test(u) ? u : ""; }
@@ -333,6 +351,10 @@
     var lic = e.licence || "none stated", note = licenceNote(lic);
     var lp = meta.appendChild(el("span", note ? "pill warn" : "pill", lic));
     lp.title = note ? "Licence: " + note : "Licence";
+    var tips = (window.LibraryCatalogue && window.LibraryCatalogue.tips) || {};
+    if (tips[e.type]) meta.firstChild.title = tips[e.type];
+    if (e.low_trust) meta.appendChild(el("span", "pill flag", "low trust")).title = tips.low_trust || "";
+    if (e.archived) meta.appendChild(el("span", "pill flag", "archived")).title = tips.archived || "";
     a.appendChild(meta);
     if (e.summary) a.appendChild(el("p", "summary", e.summary));
     if (it.why) {

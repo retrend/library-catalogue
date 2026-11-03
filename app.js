@@ -14,6 +14,12 @@
   var terms = [];
   var termRe = null;
   var hooks = {}; // set by account.js (optional accounts): isSaved(id)
+  // Hints for type values and entry flags (shared with recommend.js through window.LibraryCatalogue.tips).
+  var TIPS = {
+    app: "App: closed-source software or a hosted service, not an agent skill. Many have a free tier; the summary and licence say where.",
+    low_trust: "Few stars on the source repo. Check before relying on it.",
+    archived: "The source repo is archived, so it gets no fixes."
+  };
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -48,7 +54,9 @@
       use_when: String(e.use_when || ""),
       author: String(e.author || ""),
       licence: String(e.licence || "none stated"),
-      url: safeUrl(e.url)
+      url: safeUrl(e.url),
+      low_trust: e.low_trust === true,
+      archived: e.archived === true
     };
     x.l = {
       name: x.name.toLowerCase(),
@@ -125,12 +133,15 @@
       keys.sort(function (a, b) { return (c[b] || 0) - (c[a] || 0) || a.localeCompare(b); });
       var html = '<option value="">All (' + fmt(total) + ")</option>";
       keys.forEach(function (k) {
-        html += '<option value="' + esc(k) + '">' + esc(k) + " (" + fmt(c[k] || 0) + ")</option>";
+        var tip = f === "type" && TIPS[k] ? ' title="' + esc(TIPS[k]) + '"' : "";
+        html += '<option value="' + esc(k) + '"' + tip + ">" + esc(k) + " (" + fmt(c[k] || 0) + ")</option>";
       });
       sel.innerHTML = html;
       sel.value = state[f];
     });
     els.sort.value = state.sort;
+    var hint = TIPS[state.type] || "";
+    if (els.typeHint) { els.typeHint.textContent = hint; els.typeHint.hidden = !hint; }
   }
 
   function card(e) {
@@ -143,9 +154,12 @@
     }).join("");
     return '<article class="card" data-id="' + esc(e.id) + '">' +
       '<div class="card-head"><span class="rank" title="Rank">#' + (e.rank == null ? "–" : e.rank) + '</span><h2 class="name">' + title + "</h2></div>" +
-      '<div class="meta"><span class="pill type">' + esc(e.type) + "</span>" +
+      '<div class="meta"><span class="pill type"' + (TIPS[e.type] ? ' title="' + esc(TIPS[e.type]) + '"' : "") + ">" + esc(e.type) + "</span>" +
       (e.need ? '<span class="pill" title="Need">' + esc(e.need) + "</span>" : "") +
-      '<span class="pill" title="Licence">' + esc(e.licence) + "</span></div>" +
+      '<span class="pill" title="Licence">' + esc(e.licence) + "</span>" +
+      (e.low_trust ? '<span class="pill flag" title="' + esc(TIPS.low_trust) + '">low trust</span>' : "") +
+      (e.archived ? '<span class="pill flag" title="' + esc(TIPS.archived) + '">archived</span>' : "") +
+      "</div>" +
       (e.summary ? '<p class="summary">' + hl(e.summary) + "</p>" : "") +
       (e.use_when ? '<p class="use"><b>Use when:</b> ' + hl(e.use_when) + "</p>" : "") +
       (e.author ? '<p class="byline">By ' + hl(e.author) + "</p>" : "") +
@@ -273,9 +287,10 @@
     window.addEventListener("hashchange", function () { readHash(); render(); });
   }
 
-  function setUpdated(d) {
+  function setUpdated(d, n) {
     var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || "");
-    els.updated.textContent = m ? " Updated " + Number(m[3]) + " " + MONTHS[Number(m[2]) - 1] + " " + m[1] + "." : "";
+    els.updated.textContent = (n ? " " + fmt(n) + (n === 1 ? " entry." : " entries.") : "") +
+      (m ? " Updated " + Number(m[3]) + " " + MONTHS[Number(m[2]) - 1] + " " + m[1] + "." : "");
   }
 
   function ready() {
@@ -288,6 +303,7 @@
   function init() {
     ["q", "grid", "count", "empty", "more", "clear", "updated"].forEach(function (k) { els[k] = $(k); });
     els.type = $("f-type"); els.need = $("f-need"); els.licence = $("f-licence"); els.sort = $("f-sort");
+    els.typeHint = $("type-hint");
     els.showMore = $("show-more"); els.showAll = $("show-all"); els.activeTag = $("active-tag");
     readHash();
     bind();
@@ -297,13 +313,13 @@
         var list = d && Array.isArray(d.entries) ? d.entries : [];
         all = list.filter(function (e) { return e && (e.name || e.id); }).map(prep);
         all.forEach(function (e) { if (e.rank != null && e.rank > maxRank) maxRank = e.rank; });
-        setUpdated(d && d.updated);
+        setUpdated(d && d.updated, all.length);
         render();
         ready();
       })
       .catch(function () { all = []; render(); ready(); });
   }
 
-  window.LibraryCatalogue = { hooks: hooks, refresh: function () { state.limit = PAGE; render(); }, state: state, draftText: function (i) { return draftText(all[i]); }, current: function () { return current; }, entries: function () { return all; }, copy: copy, loaded: false };
+  window.LibraryCatalogue = { hooks: hooks, tips: TIPS, refresh: function () { state.limit = PAGE; render(); }, state: state, draftText: function (i) { return draftText(all[i]); }, current: function () { return current; }, entries: function () { return all; }, copy: copy, loaded: false };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
