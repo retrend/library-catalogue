@@ -90,3 +90,32 @@ mark { background: var(--highlight); color: inherit; border-radius: 3px; padding
   .kbd { display: none; }
   .controls { position: static; }
 }
+
+/* —— Describe your project —— */
+.rec { margin: 0 0 18px; padding: 18px; background: linear-gradient(160deg, rgba(196, 77, 255, 0.09), rgba(124, 92, 255, 0.04) 60%), var(--bg-elev); border: 1px solid var(--border-strong); border-radius: var(--radius); }
+.rec-title { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.01em; }
+.rec-intro { margin: 4px 0 12px; color: var(--text-dim); font-size: 14px; }
+#rec-prompt { display: block; width: 100%; min-height: 84px; resize: vertical; padding: 12px 14px; font: inherit; font-size: 1rem; line-height: 1.45; color: var(--text); background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--radius-sm); outline: none; transition: border-color .15s, box-shadow .15s; }
+#rec-prompt:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+#rec-prompt::placeholder { color: var(--text-mute); }
+.rec-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 10px; }
+.rec-hint { font-size: 12px; color: var(--text-mute); }
+.rec-hint kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--border-strong); border-radius: 5px; padding: 0 5px; }
+#rec-clear { margin-left: auto; }
+.rec-msg { margin: 10px 0 0; font-size: 14px; color: var(--text-dim); }
+.rec-msg:empty { display: none; }
+.rec-out { margin-top: 14px; }
+.rec-bar { display: flex; align-items: center; gap: 10px; }
+.rec-group { margin-top: 16px; }
+.rec-group-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.rec-group-head h3 { margin: 0; font-size: 1rem; font-weight: 600; text-transform: capitalize; }
+.rec-sub { font-size: 12px; color: var(--text-mute); }
+.rec-grid { margin-top: 0; }
+.rec-card { background: var(--bg-card); content-visibility: visible; }
+.why { margin: 0; font-size: 13.5px; color: var(--text-dim); }
+.why b { color: var(--accent); font-weight: 500; }
+@media (max-width: 640px) {
+  .rec { padding: 14px; }
+  .rec-hint { display: none; }
+  #rec-go { flex: 1 1 auto; }
+}

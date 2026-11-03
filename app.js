@@ -192,6 +192,8 @@
     var p = new URLSearchParams();
     ["q", "type", "need", "licence", "tag"].forEach(function (k) { if (state[k]) p.set(k, state[k]); });
     if (state.sort !== "best") p.set("sort", state.sort);
+    var keep = new URLSearchParams(location.hash.replace(/^#/, "")).get("p"); // recommender prompt lives in the same hash
+    if (keep) p.set("p", keep);
     var h = p.toString();
     var url = location.pathname + location.search + (h ? "#" + h : "");
     if (url !== location.pathname + location.search + location.hash) history.replaceState(null, "", url);
@@ -274,6 +276,13 @@
     els.updated.textContent = m ? " Updated " + Number(m[3]) + " " + MONTHS[Number(m[2]) - 1] + " " + m[1] + "." : "";
   }
 
+  function ready() {
+    var ev;
+    try { ev = new CustomEvent("catalogue:ready"); } catch (err) { ev = document.createEvent("Event"); ev.initEvent("catalogue:ready", false, false); }
+    window.LibraryCatalogue.loaded = true;
+    document.dispatchEvent(ev);
+  }
+
   function init() {
     ["q", "grid", "count", "empty", "more", "clear", "updated"].forEach(function (k) { els[k] = $(k); });
     els.type = $("f-type"); els.need = $("f-need"); els.licence = $("f-licence"); els.sort = $("f-sort");
@@ -288,10 +297,11 @@
         all.forEach(function (e) { if (e.rank != null && e.rank > maxRank) maxRank = e.rank; });
         setUpdated(d && d.updated);
         render();
+        ready();
       })
-      .catch(function () { all = []; render(); });
+      .catch(function () { all = []; render(); ready(); });
   }
 
-  window.LibraryCatalogue = { state: state, draftText: function (i) { return draftText(all[i]); }, current: function () { return current; } };
+  window.LibraryCatalogue = { state: state, draftText: function (i) { return draftText(all[i]); }, current: function () { return current; }, entries: function () { return all; }, copy: copy, loaded: false };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
