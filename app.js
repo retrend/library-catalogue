@@ -1,4 +1,4 @@
-/* Library Catalogue: static, no framework, no API calls. Reads data.json. */
+/* Library Catalogue: static, no framework. Reads data.json. Optional accounts live in account.js. */
 (function () {
   "use strict";
 
@@ -13,6 +13,7 @@
   var current = [];
   var terms = [];
   var termRe = null;
+  var hooks = {}; // set by account.js (optional accounts): isSaved(id)
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -81,6 +82,7 @@
     if (skip !== "need" && state.need && e.need !== state.need) return false;
     if (skip !== "licence" && state.licence && e.licence !== state.licence) return false;
     if (state.tag && e.tags.indexOf(state.tag) < 0) return false;
+    if (state.savedOnly && !(hooks.isSaved && hooks.isSaved(e.id))) return false;
     return true;
   }
 
@@ -302,6 +304,6 @@
       .catch(function () { all = []; render(); ready(); });
   }
 
-  window.LibraryCatalogue = { state: state, draftText: function (i) { return draftText(all[i]); }, current: function () { return current; }, entries: function () { return all; }, copy: copy, loaded: false };
+  window.LibraryCatalogue = { hooks: hooks, refresh: function () { state.limit = PAGE; render(); }, state: state, draftText: function (i) { return draftText(all[i]); }, current: function () { return current; }, entries: function () { return all; }, copy: copy, loaded: false };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
 })();
